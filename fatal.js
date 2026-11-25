@@ -1,6 +1,7 @@
 import { setupWalletSelector } from 'https://esm.sh/@near-wallet-selector/core@9';
 import { setupModal } from 'https://esm.sh/@near-wallet-selector/modal-ui@9';
-import { setupMyNearWallet } from 'https://esm.sh/@near-wallet-selector/my-near-wallet@9';
+import { setupMeteorWallet } from 'https://esm.sh/@near-wallet-selector/meteor-wallet@9';
+import { setupHereWallet } from 'https://esm.sh/@near-wallet-selector/here-wallet@9';
 
 const C = window.FATAL_CONFIG;
 const es = (navigator.language || 'en').toLowerCase().startsWith('es');
@@ -48,7 +49,7 @@ async function balanceOf(account) {
   return Number(JSON.parse(new TextDecoder().decode(new Uint8Array(j.result.result))));
 }
 
-const selector = await setupWalletSelector({ network: C.network, modules: [setupMyNearWallet()] });
+const selector = await setupWalletSelector({ network: C.network, modules: [setupMeteorWallet(), setupHereWallet()] });
 const modal = setupModal(selector, { contractId: C.contract });
 const accountId = () => (selector.store.getState().accounts.find(a => a.active) || selector.store.getState().accounts[0] || {}).accountId;
 
@@ -70,13 +71,25 @@ async function showAccount(acct, note = '') {
   $('fPlay').onclick = async () => {
     const w = await selector.wallet();
     localStorage.setItem('fatal.pending', acct);
-    await w.signAndSendTransaction({ receiverId: C.contract, callbackUrl: location.origin + location.pathname,
+    const out = await w.signAndSendTransaction({ receiverId: C.contract, callbackUrl: location.origin + location.pathname,
       actions: [{ type: 'FunctionCall', params: { methodName: 'ft_transfer', args: { receiver_id: C.treasury, amount: String(C.fee) }, gas: '30000000000000', deposit: '1' } }] });
+    const h = out && ((out.transaction && out.transaction.hash) || (out.transaction_outcome && out.transaction_outcome.id));
+    if (h) startWith(acct, h);
   };
 }
 function launchGame() {
   card().innerHTML = savedCardHTML; savedBind();
   $('overlay').classList.add('on');
+}
+
+async function startWith(acct, tx) {
+  gateShell(`<p>${S.paying}</p>`);
+  let res;
+  for (let i = 0; i < 8; i++) { res = await J('/start', { account: acct, tx }); if (res[0] !== 404) break; await new Promise(r => setTimeout(r, 2500)); }
+  localStorage.removeItem('fatal.pending');
+  if (res[0] === 200) { localStorage.setItem('fatal.session', JSON.stringify({ id: res[1].session, acct })); return launchGame(); }
+  gateShell(`<p>${S.err}: ${esc(res[1].error || res[0])}</p><button id="fRe">${S.retry}</button>`);
+  $('fRe').onclick = () => location.href = location.pathname;
 }
 
 async function boot() {
@@ -85,14 +98,8 @@ async function boot() {
   const q = new URLSearchParams(location.search);
   const tx = (q.get('transactionHashes') || '').split(',')[0];
   if (tx && localStorage.getItem('fatal.pending') === acct) {
-    gateShell(`<p>${S.paying}</p>`);
     history.replaceState(null, '', location.pathname);
-    let res;
-    for (let i = 0; i < 8; i++) { res = await J('/start', { account: acct, tx }); if (res[0] !== 404) break; await new Promise(r => setTimeout(r, 2500)); }
-    localStorage.removeItem('fatal.pending');
-    if (res[0] === 200) { localStorage.setItem('fatal.session', JSON.stringify({ id: res[1].session, acct })); return launchGame(); }
-    gateShell(`<p>${S.err}: ${esc(res[1].error || res[0])}</p><button id="fRe">${S.retry}</button>`);
-    return ($('fRe').onclick = () => location.href = location.pathname);
+    return startWith(acct, tx);
   }
   let note = '';
   const [st, w] = await J('/welcome', { account: acct });

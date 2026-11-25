@@ -1,0 +1,17 @@
+import fs from 'fs';
+import { Account } from '@near-js/accounts';
+import { KeyPairSigner } from '@near-js/signers';
+import { JsonRpcProvider } from '@near-js/providers';
+import { KeyPair } from '@near-js/crypto';
+const API='https://mutant-cat-fatal.standardp-games.workers.dev', C='mcfatal-38428.testnet', T='mcfatal-cause-38428.testnet';
+const provider = new JsonRpcProvider({url:'https://rpc.testnet.near.org'});
+const kp = KeyPair.fromRandom('ed25519'); const player='mctest-'+Math.floor(Math.random()*1e6)+'.testnet';
+await fetch('https://helper.testnet.near.org/account',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({newAccountId:player,newAccountPublicKey:kp.getPublicKey().toString()})});
+const post=async(p,b)=>{const r=await fetch(API+p,{method:'POST',body:JSON.stringify(b)});return [r.status,await r.json()]};
+console.log('welcome',JSON.stringify(await post('/welcome',{account:player})));
+const pa=new Account(player,provider,new KeyPairSigner(kp));
+const tx=await pa.callFunctionRaw({contractId:C,methodName:'ft_transfer',args:{receiver_id:T,amount:'8'},gas:30000000000000n,deposit:1n});
+const hash=tx.transaction.hash||tx.transaction_outcome.id;
+const st=await post('/start',{account:player,tx:hash}); console.log('start',st[0]);
+const bal=await provider.callFunction(C,'ft_balance_of',{account_id:player}); console.log('player',player,'balance after fee',bal);
+fs.writeFileSync('/tmp/session.json',JSON.stringify({id:st[1].session,acct:player,t:Date.now()}));
