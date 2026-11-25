@@ -1,0 +1,19 @@
+name = "mutant-cat-fatal"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+CONTRACT = "mcfatal-38428.testnet"
+TREASURY = "mcfatal-cause-38428.testnet"
+RPC_URL = "https://rpc.testnet.near.org"
+
+# KV namespace id is filled in after `wrangler kv namespace create KV`
+
+# binding = "KV"
+# id = "..."
+# Secret (never committed): wrangler secret put TREASURY_KEY
+
+[[kv_namespaces]]
+binding = "KV"
+id = "6dfac601396a41119d34fb90ad0d3d19"
