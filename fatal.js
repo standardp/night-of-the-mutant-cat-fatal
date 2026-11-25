@@ -1,6 +1,6 @@
-import { setupWalletSelector } from 'https://esm.sh/@near-wallet-selector/core@9?bundle';
-import { setupModal } from 'https://esm.sh/@near-wallet-selector/modal-ui@9?bundle';
-import { setupMyNearWallet } from 'https://esm.sh/@near-wallet-selector/my-near-wallet@9?bundle';
+import { setupWalletSelector } from 'https://esm.sh/@near-wallet-selector/core@9';
+import { setupModal } from 'https://esm.sh/@near-wallet-selector/modal-ui@9';
+import { setupMyNearWallet } from 'https://esm.sh/@near-wallet-selector/my-near-wallet@9';
 
 const C = window.FATAL_CONFIG;
 const es = (navigator.language || 'en').toLowerCase().startsWith('es');
