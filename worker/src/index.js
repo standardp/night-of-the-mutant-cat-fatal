@@ -28,7 +28,13 @@ async function view(provider, contract, method, args) {
   return r;
 }
 async function send(env, ch, method, args, deposit = 1n) {
-  return ch.treasury.callFunction({ contractId: env.CONTRACT, methodName: method, args, gas: 30000000000000n, deposit });
+  // retry: concurrent calls from the one treasury key can collide on nonce
+  let err;
+  for (let i = 0; i < 4; i++) {
+    try { return await ch.treasury.callFunction({ contractId: env.CONTRACT, methodName: method, args, gas: 30000000000000n, deposit }); }
+    catch (e) { err = e; await new Promise(r => setTimeout(r, 400 + Math.random() * 800)); }
+  }
+  throw err;
 }
 const validAccount = a => typeof a === 'string' && /^[a-z0-9._-]{2,64}\.testnet$|^[a-f0-9]{64}$/.test(a);
 
@@ -43,11 +49,14 @@ export async function handle(req, env) {
   if (url.pathname === '/welcome') {
     const account = body.account;
     if (!validAccount(account)) return json({ error: 'bad account' }, 400);
-    if (await env.KV.get('w:' + account)) return json({ granted: false, reason: 'already' });
+    const prev = await env.KV.get('w:' + account);
+    if (prev && prev.startsWith('p:') && Date.now() - Number(prev.slice(2)) > 60000) { /* stale lock, retry */ }
+    else if (prev && prev.startsWith('p:')) return json({ granted: false, reason: 'pending' });
+    else if (prev) return json({ granted: false, reason: 'already' });
     const count = Number(await env.KV.get('welcomes') || 0);
     if (count >= MAX_WELCOMES) return json({ granted: false, reason: 'cap' });
     // reserve first so concurrent calls cannot double-grant
-    await env.KV.put('w:' + account, String(Date.now()));
+    await env.KV.put('w:' + account, 'p:' + Date.now());
     await env.KV.put('welcomes', String(count + 1));
     try {
       const reg = await view(ch.provider, env.CONTRACT, 'storage_balance_of', { account_id: account });
@@ -57,6 +66,7 @@ export async function handle(req, env) {
       await env.KV.delete("w:" + account); await env.KV.put("welcomes", String(count)); // let them retry
       return json({ error: 'transfer failed', detail: String(e.message || e).slice(0, 200) }, 502);
     }
+    await env.KV.put('w:' + account, 'd:' + Date.now());
     return json({ granted: true, amount: Number(WELCOME) });
   }
 

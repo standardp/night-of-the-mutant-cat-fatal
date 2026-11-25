@@ -92,7 +92,13 @@ async function startWith(acct, tx) {
   $('fRe').onclick = () => location.href = location.pathname;
 }
 
+let booting = false;
 async function boot() {
+  if (booting) return;
+  booting = true;
+  try { await boot2(); } finally { booting = false; }
+}
+async function boot2() {
   const acct = accountId();
   if (!acct) return showConnect();
   const q = new URLSearchParams(location.search);
@@ -102,7 +108,9 @@ async function boot() {
     return startWith(acct, tx);
   }
   let note = '';
-  const [st, w] = await J('/welcome', { account: acct });
+  let [st, w] = await J('/welcome', { account: acct });
+  for (let i = 0; i < 6 && st === 200 && w.reason === 'pending'; i++) { await new Promise(r => setTimeout(r, 3000)); [st, w] = await J('/welcome', { account: acct }); }
+  if (st === 502) { await new Promise(r => setTimeout(r, 2000)); [st, w] = await J('/welcome', { account: acct }); }
   if (st === 200 && w.granted) note = `<br>${f(S.welcomed)}`;
   showAccount(acct, note);
 }
